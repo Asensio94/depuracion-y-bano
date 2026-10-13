@@ -1,0 +1,8 @@
+requests>=2.31
+openpyxl>=3.1       # the EEA bathing water classification comes as an Excel file
+shapely>=2.0
+pyogrio>=0.7        # reads HydroRIVERS straight from its zip
+numpy>=1.26
+typer>=0.12
+tzdata>=2024.1      # Europe/Madrid on systems without a zoneinfo database (Windows)
+pytest>=8
