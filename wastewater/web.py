@@ -84,7 +84,7 @@ p.block{{color:var(--muted);margin:0 0 10px;max-width:760px}}
   border-bottom:1px solid var(--line)}}
 #results button:hover,#results button:focus-visible{{background:color-mix(in srgb,var(--accent) 10%,transparent)}}
 #results .sub{{display:block;color:var(--muted);font-size:.86rem}}
-#map{{height:min(620px,75vh);border:1px solid var(--line);border-radius:8px;margin:10px 0 6px;background:var(--paper)}}
+#map,#map-bath{{height:min(620px,75vh);border:1px solid var(--line);border-radius:8px;margin:10px 0 6px;background:var(--paper)}}
 .leaflet-container{{font:inherit;font-size:.9rem}}
 .leaflet-popup-content{{margin:12px 14px;line-height:1.4}}
 .leaflet-popup-content h4{{margin:0 0 2px;font-size:1rem}}
@@ -155,6 +155,14 @@ for (const a of DATA.aggs) {
   layers[a.layer].addLayer(m); a.marker = m;
 }
 
+function zonePopup([id, name, muni, lon, lat, q, type, hist, ups]) {
+  return `<h4>${esc(name)}</h4><div class="sub">Zona de baño · ${type} · ${esc(muni)}</div>
+    <div><b>${DATA.quality[q]}</b> en ${DATA.season}${hist ? '. ' + hist : ''}</div>
+    ${ups.length ? '<b>Vierten cerca:</b><ul>' + ups.map(([c, how, km]) => {
+      const a = aggBy[c]; return a ? `<li>${esc(a[1])} <span class="sub">${fmt(a[5])} h-e · ${how}, a ${km.toLocaleString('es-ES')} km${a[6] ? ' · <b>no depura como debe</b>' : ''}</span></li>` : '';
+    }).join('') + '</ul>' : '<div class="sub">Ningún pueblo o ciudad de más de 2.000 h-e vierte cerca.</div>'}`;
+}
+
 // Bathing waters: diamonds, the worst ones bigger and on top.
 const SIZE = {insuficiente: 15, suficiente: 12, buena: 8, excelente: 7, sin_clasificar: 7};
 const RANK = {insuficiente: 400, suficiente: 300, buena: 100, excelente: 0, sin_clasificar: 0};
@@ -163,24 +171,40 @@ for (const z of DATA.zones) {
   const m = L.marker([lat, lon], {zIndexOffset: RANK[q], keyboard: false, icon: L.divIcon({className: '',
     html: `<span class="sq" style="background:${css('--q-' + q)};border:1px solid #fff;width:${SIZE[q]}px;height:${SIZE[q]}px;opacity:${RANK[q] ? 1 : .75}"></span>`,
     iconSize: [SIZE[q], SIZE[q]]})});
-  m.bindPopup(() => `<h4>${esc(name)}</h4><div class="sub">Zona de baño · ${type} · ${esc(muni)}</div>
-    <div><b>${DATA.quality[q]}</b> en ${DATA.season}${hist ? '. ' + hist : ''}</div>
-    ${ups.length ? '<b>Vierten cerca:</b><ul>' + ups.map(([c, how, km]) => {
-      const a = aggBy[c]; return a ? `<li>${esc(a[1])} <span class="sub">${fmt(a[5])} h-e · ${how}, a ${km.toLocaleString('es-ES')} km${a[6] ? ' · <b>no depura como debe</b>' : ''}</span></li>` : '';
-    }).join('') + '</ul>' : '<div class="sub">Ningún pueblo o ciudad de más de 2.000 h-e vierte cerca.</div>'}`);
+  m.bindPopup(() => zonePopup(z));
   z.targets = () => ups.map(([c]) => aggBy[c]).filter(Boolean).map(a => [a[4], a[3]]);
   z.layer = RANK[q] >= 300 ? 'zonesBad' : 'zonesGood';
   m.on('click', () => draw([lat, lon], z.targets()));
   layers[z.layer].addLayer(m); z.marker = m;
 }
-function draw(from, tos) {
-  lines.clearLayers();
+function draw(from, tos, into = lines, renderer = svg) {
+  into.clearLayers();
   for (const to of tos) {
-    L.polyline([from, to], {renderer: svg, color: LINK, weight: 2.5, dashArray: '5 4', interactive: false}).addTo(lines);
-    L.circleMarker(to, {renderer: svg, radius: 6, color: LINK, weight: 2.5, fill: false, interactive: false}).addTo(lines);
+    L.polyline([from, to], {renderer, color: LINK, weight: 2.5, dashArray: '5 4', interactive: false}).addTo(into);
+    L.circleMarker(to, {renderer, radius: 6, color: LINK, weight: 2.5, fill: false, interactive: false}).addTo(into);
   }
 }
 map.on('popupclose', () => lines.clearLayers());
+
+// Second map: only the bathing waters rated poor or sufficient, the poor ones bigger the more seasons they failed.
+const bath = L.map('map-bath', {preferCanvas: true}).setView([40.2, -3.6], 6);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 18, attribution: '© OpenStreetMap'}).addTo(bath);
+const bathLines = L.layerGroup().addTo(bath), bathSvg = L.svg({padding: 1}), bathBy = {};
+for (const z of [...DATA.zones].sort((x, y) => x[9] - y[9])) {
+  const [id, name, muni, lon, lat, q, , , , poorSeasons] = z;
+  if (q !== 'insuficiente' && q !== 'suficiente') continue;
+  const m = L.circleMarker([lat, lon], {radius: q === 'insuficiente' ? 5 + 2 * poorSeasons : 5,
+    color: '#fff', weight: 1, fillColor: css('--q-' + q), fillOpacity: .9}).addTo(bath);
+  m.bindPopup(() => zonePopup(z));
+  m.on('click', () => draw([lat, lon], z.targets(), bathLines, bathSvg));
+  bathBy[id] = {marker: m, at: [lat, lon], targets: z.targets};
+}
+bath.on('popupclose', () => bathLines.clearLayers());
+function focusBath(b) {
+  if (!b) return;
+  document.getElementById('map-bath').scrollIntoView({behavior: 'smooth', block: 'center'});
+  setTimeout(() => { bath.fitBounds(L.latLngBounds([b.at, ...b.targets()]).pad(0.3), {maxZoom: 12}); b.marker.fire('click'); }, 300);
+}
 
 function show(key, on) {
   on ? layers[key].addTo(map) : map.removeLayer(layers[key]);
@@ -199,13 +223,14 @@ function focus(item) {
 document.querySelectorAll('[data-layer]').forEach(b => b.addEventListener('click', () =>
   show(b.dataset.layer, b.getAttribute('aria-pressed') !== 'true')));
 document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => {
-  const [lat, lon, z] = b.dataset.view.split(',').map(Number); map.setView([lat, lon], z);
+  const [lat, lon, z] = b.dataset.view.split(',').map(Number); (b.dataset.map === 'bath' ? bath : map).setView([lat, lon], z);
 }));
 document.addEventListener('click', e => {
-  const a = e.target.closest('[data-agg],[data-zone]');
+  const a = e.target.closest('[data-agg],[data-zone],[data-bath]');
   if (!a) return;
   e.preventDefault();
-  focus(a.dataset.agg ? aggBy[a.dataset.agg] : zoneBy[a.dataset.zone]);
+  if (a.dataset.bath) focusBath(bathBy[a.dataset.bath]);
+  else focus(a.dataset.agg ? aggBy[a.dataset.agg] : zoneBy[a.dataset.zone]);
 });
 
 // The list of agglomerations: first rows only, filters by step.
@@ -293,7 +318,7 @@ def _zone_row(z: dict, aggs: dict) -> str:
                    f'<span class="sub">{fmt(a["pe"])} h-e · {METHOD[u["method"]]}, a {fmt(u["km"], 1)} km{bad}</span>')
     upstream = "".join(f"<div>{u}</div>" for u in ups) or '<span class="sub">Ningún pueblo o ciudad de más de 2.000 h-e</span>'
     where = " · ".join(x for x in (escape(z["municipality"] or ""), ZONE_TYPE.get(z["type"], "")) if x)
-    return (f'<tr id="{z["id"]}"><td><a class="go" href="#map" data-zone="{z["id"]}"><b>{escape(nice_name(z["name"]))}</b></a>'
+    return (f'<tr id="{z["id"]}"><td><a class="go" href="#map-bath" data-bath="{z["id"]}"><b>{escape(nice_name(z["name"]))}</b></a>'
             f'<span class="sub">{where}</span></td>'
             f'<td>{_hist_html(z["history"])}<span class="sub">{hist_text(z["history"])}</span></td><td>{upstream}</td></tr>')
 
@@ -316,7 +341,8 @@ def _map_data(data: dict) -> str:
              [z["id"] for z in a["zones"]]] for a in data["aggs"] if a["lon"] is not None]
     zones = [[z["id"], nice_name(z["name"]), z["municipality"], round(z["lon"], 5), round(z["lat"], 5), z["quality"],
               ZONE_TYPE.get(z["type"], ""), hist_text(z["history"]),
-              [[u["code"], METHOD[u["method"]], u["km"]] for u in z["upstream"]]]
+              [[u["code"], METHOD[u["method"]], u["km"]] for u in z["upstream"]],
+              sum(q == "insuficiente" for q in z["history"].values())]
              for z in data["zones"] if z["lon"] is not None]
     blob = json.dumps({"aggs": aggs, "zones": zones, "quality": QUALITY, "season": rel["season"]},
                       ensure_ascii=False, separators=(",", ":"))
@@ -372,10 +398,12 @@ def render(data: dict) -> Path:
 <main>
   <h2 class="block">En pocas palabras</h2>
   <div class="prose">
-    <p>Lo que sale de lavabos, váteres y fábricas tiene que pasar por una depuradora antes de volver a un río o al mar.
-    Una ley europea de 1991, la <a href="{DIRECTIVE}">Directiva 91/271</a>, fija lo que debe hacer cada pueblo o ciudad.
-    España va tarde: en 2018 el Tribunal de Justicia de la UE la multó con 12 millones de euros, más 10,95 millones por
-    cada seis meses de retraso (<a href="{JUDGMENT}">asunto C-205/17</a>).</p>
+    <p>Las aguas residuales urbanas deben depurarse antes de verterse a un río, un embalse o el mar. La
+    <a href="{DIRECTIVE}">Directiva 91/271/CEE</a> del Consejo fija qué tratamiento debe tener cada aglomeración según su
+    tamaño y el medio al que vierte, y los valores que debe cumplir el agua depurada (en el tratamiento secundario, por
+    ejemplo, 25 mg/l de DBO<sub>5</sub> y 125 mg/l de DQO). Los plazos vencieron entre 1998 y 2005. España ya ha sido
+    condenada por incumplirla: en 2018 el Tribunal de Justicia de la UE le impuso una multa de 12 millones de euros más
+    10,95 millones por cada semestre de retraso (<a href="{JUDGMENT}">asunto C-205/17</a>).</p>
     <p>Esta página toma lo que el propio Gobierno declaró a Europa en su último informe, con datos a
     {long_date(rep["situation"])}, y comprueba regla a regla quién no cumple. Después sigue el agua de cada depuradora
     hasta las zonas de baño que hay río abajo. Es un <b>indicio, no un veredicto</b>: la Comisión Europea tiene en
@@ -452,6 +480,17 @@ def render(data: dict) -> Path:
     {fmt(f["poor"] - f["poor_with_upstream"])} no vierte cerca ninguno de más de 2.000 h-e: la causa estará en pueblos
     pequeños, la ganadería o la lluvia que arrastra suciedad.</p>
   </div>
+  <div class="legend lead"><b>Mapa de las zonas de baño con peor nota</b> en {rel["season"]}:</div>
+  <div class="legend">
+    <span><span class="dot" style="background:var(--q-insuficiente)"></span>Insuficiente ({fmt(f["quality"]["insuficiente"])}), más grande cuantas más temporadas lleva suspendiendo</span>
+    <span><span class="dot" style="background:var(--q-suficiente)"></span>Suficiente ({fmt(f["quality"]["suficiente"])}), aprobado justo</span>
+  </div>
+  <p class="legend">Pulsa una zona para ver su historial y quién vierte cerca (líneas azules).</p>
+  <div class="tools" role="group" aria-label="Ir a">
+    <button type="button" data-map="bath" data-view="40.2,-3.6,6">Península y Baleares</button>
+    <button type="button" data-map="bath" data-view="28.4,-15.9,8">Canarias</button>
+  </div>
+  <div id="map-bath" role="region" aria-label="Mapa de zonas de baño insuficientes y suficientes"></div>
   <p class="block">Primero las que llevan más temporadas suspendiendo. Cuadros: nota de cada una de las {seasons} últimas temporadas.</p>
   <div class="wrap"><table class="list">
     <thead><tr><th>Zona de baño</th><th>Historial</th><th>Quién vierte cerca</th></tr></thead>
