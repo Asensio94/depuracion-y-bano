@@ -31,7 +31,7 @@ En 2018 el Tribunal de Justicia de la UE condenó a España a pagar multa por la
 ## Límites
 
 - Es un indicio, no un veredicto. La Comisión evalúa con plazos, excepciones y aclaraciones que no están en el informe, y su evaluación no se publica como datos abiertos.
-- Solo entran las aglomeraciones de 2.000 h-e o más, porque las pequeñas no se informan.
+- Solo entran las aglomeraciones de 2.000 h-e o más, porque las pequeñas no se informan. Según el [Nomenclátor del INE](https://www.ine.es/nomen2/index.do) de 2025, 1,7 millones de personas viven en diseminado y 6,4 millones en núcleos de menos de 2.000 habitantes; no hay datos abiertos nacionales sobre cómo depuran. La EIEL del Ministerio de Política Territorial lo recoge por núcleo, pero solo unas 19 provincias la publican con datos y su licencia es CC BY-NC-SA.
 - El informe llega con dos años de retraso.
 - No hay un campo para el tratamiento cuaternario. Se aproxima con la ozonización declarada.
 - HydroRIVERS (unos 500 m de resolución) no tiene los arroyos pequeños, y un punto puede caer en el tramo vecino. En la costa la distancia es en línea recta y no tiene en cuenta las corrientes.

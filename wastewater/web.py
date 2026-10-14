@@ -96,6 +96,9 @@ DIRECTIVE = "https://eur-lex.europa.eu/legal-content/ES/TXT/?uri=CELEX:31991L027
 BATHING_DIRECTIVE = "https://eur-lex.europa.eu/legal-content/ES/TXT/?uri=CELEX:32006L0007"
 RECAST_URL = "https://eur-lex.europa.eu/legal-content/ES/TXT/?uri=CELEX:32024L3019"
 JUDGMENT = "https://curia.europa.eu/juris/liste.jsf?num=C-205/17"
+NOMENCLATOR_URL = "https://www.ine.es/nomen2/index.do"
+# INE Nomenclátor 2025: people in scattered housing (units ending in 99) and in population nuclei under 2,000.
+NOMENCLATOR = {"year": 2025, "scattered": 1_700_591, "small": 6_359_824}
 
 CSS = f""":root{{--accent:{ACCENT};--accent-dark:{ACCENT_DARK};
   --g-collection:#b42318;--g-secondary:#d9600f;--g-stringent:#b8860b;--g-ok:#9a948d;
@@ -469,8 +472,12 @@ def render(data: dict) -> Path:
           f"fallan aquí: {fmt(gaps['stringent'])} no lo hacen y {fmt(gaps['stringent_performance'])} no quitan lo bastante.")}
   </div>
   <p class="block">Dentro de las aglomeraciones del informe, {fmt(f["untreated_pe"])} h-e se vierten sin ningún
-  tratamiento y {fmt(f["individual_pe"])} h-e van a fosas sépticas u otros sistemas individuales. Fuera del recuento
-  quedan los pueblos de menos de 2.000 h-e y las casas aisladas: el informe europeo no los incluye.</p>
+  tratamiento y {fmt(f["individual_pe"])} h-e van a fosas sépticas u otros sistemas individuales.</p>
+  <p class="block">Fuera del recuento quedan las casas aisladas y los pueblos pequeños: el informe europeo solo incluye
+  aglomeraciones de 2.000 h-e o más. Según el <a href="{NOMENCLATOR_URL}">Nomenclátor del INE</a> de
+  {NOMENCLATOR["year"]}, {fmt(NOMENCLATOR["scattered"] / 1e6, 1)} millones de personas viven en diseminado y
+  {fmt(NOMENCLATOR["small"] / 1e6, 1)} millones en núcleos de menos de 2.000 habitantes. No hay datos abiertos de
+  ámbito nacional sobre cómo depuran sus aguas.</p>
   <dl class="words">
     <div class="card"><dt>Pueblo o ciudad («aglomeración»)</dt><dd>Para la ley, la zona que comparte alcantarillado y
     depuradora. Puede ser un municipio, parte de uno o varios juntos. Solo se cuentan las de más de 2.000 h-e.</dd></div>
