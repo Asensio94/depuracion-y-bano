@@ -71,7 +71,7 @@ def fetch_status(release: dict) -> int:
         out.append({"id": r[head["bathingWaterIdentifier"]], "season": int(r[head["season"]]),
                     "quality": QUALITY.get(str(r[head["quality"]] or "0")[0], "sin_clasificar"),
                     "name": (r[head["bathingWaterName"]] or "").strip(), "type": r[head["bathingWaterType"]],
-                    "lon": r[head["lon"]], "lat": r[head["lat"]]})
+                    "lon": r[head["lon"]], "lat": r[head["lat"]], "profile": r[head["bwProfile"]] or None})
     out.sort(key=lambda x: (x["id"], x["season"]))
     write_rows(DIR / "status.json", out)
     write_json(DIR / "release.json", release)
