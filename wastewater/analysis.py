@@ -41,7 +41,7 @@ def latest_zones() -> tuple[dict, list[dict]]:
     for i, r in sorted(rows.items()):
         z = register.get(i, {})
         out.append({"id": i, "name": r["name"] or z.get("name", ""), "type": z.get("type") or r["type"],
-                    "water_body": z.get("water_body"), "quality": r["quality"],
+                    "water_body": z.get("water_body"), "quality": r["quality"], "profile": r.get("profile"),
                     "lon": z.get("lon") if z.get("lon") is not None else r["lon"],
                     "lat": z.get("lat") if z.get("lat") is not None else r["lat"],
                     "history": {str(s): q for s, q in sorted(history[i].items())}})
@@ -79,6 +79,12 @@ def build() -> dict:
                 downstream[a][l["zone"]] = (best, l["method"], l["km"])
                 upstream[l["zone"]][a] = (best, l["method"], l["km"])
 
+    # which limits the plants of each agglomeration failed in their checks (F = fail)
+    plant_by = {p["uwwCode"]: p for p in plants}
+    checks = {"bod": "uwwBOD5Perf", "cod": "uwwCODPerf", "n": "uwwNTotPerf", "p": "uwwPTotPerf"}
+    failed = {code: sorted({k for pc in r.plants for k, col in checks.items() if plant_by[pc][col] == "F"},
+                           key=list(checks).index) for code, r in result.items()}
+
     locate = Locator(municipalities())
     names = locate.names
     agg_rows = []
@@ -89,7 +95,7 @@ def build() -> dict:
         agg_rows.append({
             "code": code, "name": display_name(a["aggName"], names.get(ine, "")), "ine": ine, "municipality": names.get(ine, ""),
             "lon": a["aggLongitude"], "lat": a["aggLatitude"], "pe": r.pe,
-            "gaps": r.gaps, "main_gap": r.main_gap, "recast": r.recast,
+            "gaps": r.gaps, "main_gap": r.main_gap, "recast": r.recast, "failed": failed[code],
             "collected": a["aggC1"], "individual": a["aggC2"], "untreated": a["aggPercWithoutTreatment"],
             "plan": {"date": p["flaggExpecDateCompletion"], "status": p["flaggStatus"],
                      "investment": p["flaggInv"]} if p else None,
@@ -111,6 +117,8 @@ def build() -> dict:
         "figures": {
             "assessed": len(agg_rows), "flagged": len(flagged), "flagged_pe": sum(a["pe"] for a in flagged),
             "total_pe": sum(a["pe"] for a in agg_rows), "zones": len(zones), "poor": len(poor),
+            "untreated_pe": round(sum(a["pe"] * float(a["untreated"] or 0) / 100 for a in agg_rows)),
+            "individual_pe": round(sum(a["pe"] * float(a["individual"] or 0) / 100 for a in agg_rows)),
             "poor_with_flagged_upstream": sum(any(by_code[u["code"]]["gaps"] for u in z["upstream"]) for z in poor),
             "poor_with_upstream": sum(bool(z["upstream"]) for z in poor),
             "quality": {q: sum(z["quality"] == q for z in zones) for q in QUALITY_ORDER},

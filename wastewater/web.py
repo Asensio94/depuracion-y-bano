@@ -34,16 +34,56 @@ GROUP = {"collection": "collection", "untreated": "collection", "no_plant": "col
          "secondary": "secondary", "secondary_performance": "secondary",
          "stringent": "stringent", "stringent_performance": "stringent"}
 STEP = {"collection": "Recoger", "secondary": "Depurar", "stringent": "Depurar más"}
-# What each gap means, said plainly.
-PLAIN = {
-    "collection": "Parte de sus aguas residuales no llega al alcantarillado",
-    "untreated": "Vierte sin depurar parte de lo que recoge",
-    "no_plant": "Recoge sus aguas pero no las lleva a ninguna depuradora",
-    "secondary": "Su depuradora no hace la depuración biológica obligatoria",
-    "secondary_performance": "Su depuradora no pasa los análisis del agua que vierte",
-    "stringent": "Vierte en una zona sensible sin quitar nitrógeno ni fósforo",
-    "stringent_performance": "No quita bastante nitrógeno o fósforo en una zona sensible",
-}
+CHECK = {"bod": "DBO₅", "cod": "DQO", "n": "nitrógeno", "p": "fósforo"}
+# Faecal bacteria above which a bathing water is "insuficiente" (90th percentile, CFU per 100 ml, Directive 2006/7).
+POOR_LIMITS = {"inland": (900, 330), "sea": (500, 185)}
+
+
+def _and(words: list[str]) -> str:
+    return " y ".join([", ".join(words[:-1]), words[-1]]) if len(words) > 1 else "".join(words)
+
+
+def plain_gap(g: str, a: dict) -> str:
+    """What a gap means for this agglomeration, in one sentence with its own figures."""
+    pct = lambda v: fmt(float(v or 0), 1)
+    failed = a.get("failed", [])
+    if g == "collection":
+        return (f"El {pct(100 - float(a['collected'] or 0) - float(a['individual'] or 0))} % de sus aguas fecales "
+                f"no llega al alcantarillado ni a una fosa")
+    if g == "untreated":
+        return f"Vierte el {pct(a['untreated'])} % de sus aguas fecales sin ningún tratamiento"
+    if g == "no_plant":
+        return "Recoge sus aguas fecales pero no las lleva a ninguna depuradora"
+    if g == "secondary":
+        return "Su depuradora no tiene tratamiento biológico: el agua sale con buena parte de la materia orgánica"
+    if g == "secondary_performance":
+        what = [CHECK[k] for k in failed if k in ("bod", "cod")]
+        return ("Su depuradora vierte agua con más materia orgánica de la permitida"
+                + (f" ({_and(what)} por encima del límite)" if what else ""))
+    if g == "stringent":
+        return "Vierte en una zona sensible sin quitar nitrógeno ni fósforo, que alimentan plagas de algas"
+    what = [CHECK[k] for k in failed if k in ("n", "p")]
+    return f"Vierte en una zona sensible más {_and(what) or 'nitrógeno o fósforo'} de lo permitido"
+
+
+def gap_sentences(a: dict) -> list[tuple[str, str]]:
+    """(group, sentence) per gap; what is not collected is usually what goes out untreated, said once."""
+    gaps = list(a["gaps"])
+    if {"collection", "untreated"} <= set(gaps) and float(a["untreated"] or 0) == round(
+            100 - float(a["collected"] or 0) - float(a["individual"] or 0), 1):
+        gaps.remove("untreated")
+        return [("collection", f"El {fmt(float(a['untreated']), 1)} % de sus aguas fecales no llega al alcantarillado "
+                               f"y se vierte sin tratar")] + [(GROUP[g], plain_gap(g, a)) for g in gaps if g != "collection"]
+    return [(GROUP[g], plain_gap(g, a)) for g in gaps]
+
+
+def faecal_text(z: dict) -> str:
+    """Why a bathing water is poor: always faecal bacteria, with the limits for its kind of water."""
+    if z["quality"] != "insuficiente":
+        return ""
+    ec, ie = POOR_LIMITS["inland" if z["type"] in ("riverBathingWater", "lakeBathingWater") else "sea"]
+    return (f"Contaminación fecal: en sus análisis hay con demasiada frecuencia más de {fmt(ec)} <i>E. coli</i> "
+            f"o más de {fmt(ie)} enterococos por 100 ml")
 QUALITY = {"excelente": "Excelente", "buena": "Buena", "suficiente": "Suficiente",
            "insuficiente": "Insuficiente", "sin_clasificar": "Sin clasificar"}
 ZONE_TYPE = {"coastalBathingWater": "mar", "transitionalBathingWater": "estuario o ría",
@@ -155,12 +195,15 @@ for (const a of DATA.aggs) {
   layers[a.layer].addLayer(m); a.marker = m;
 }
 
-function zonePopup([id, name, muni, lon, lat, q, type, hist, ups]) {
+function zonePopup(z) {
+  const [id, name, muni, lon, lat, q, type, hist, ups] = z;
   return `<h4>${esc(name)}</h4><div class="sub">Zona de baño · ${type} · ${esc(muni)}</div>
     <div><b>${DATA.quality[q]}</b> en ${DATA.season}${hist ? '. ' + hist : ''}</div>
+    ${z[10] ? `<div>${z[10]}.</div>` : ''}
     ${ups.length ? '<b>Vierten cerca:</b><ul>' + ups.map(([c, how, km]) => {
       const a = aggBy[c]; return a ? `<li>${esc(a[1])} <span class="sub">${fmt(a[5])} h-e · ${how}, a ${km.toLocaleString('es-ES')} km${a[6] ? ' · <b>no depura como debe</b>' : ''}</span></li>` : '';
-    }).join('') + '</ul>' : '<div class="sub">Ningún pueblo o ciudad de más de 2.000 h-e vierte cerca.</div>'}`;
+    }).join('') + '</ul>' : '<div class="sub">Ningún pueblo o ciudad de más de 2.000 h-e vierte cerca.</div>'}
+    ${z[11] ? `<div class="sub"><a href="${z[11]}">Perfil oficial de la zona (PDF, Sanidad)</a></div>` : ''}`;
 }
 
 // Bathing waters: diamonds, the worst ones bigger and on top.
@@ -286,8 +329,8 @@ def hist_text(history: dict) -> str:
 
 
 def _why_html(a: dict) -> str:
-    return "".join(f'<div class="why"><span class="dot" style="background:var(--g-{GROUP[g]})"></span>{PLAIN[g]}</div>'
-                   for g in a["gaps"])
+    return "".join(f'<div class="why"><span class="dot" style="background:var(--g-{g})"></span>{text}</div>'
+                   for g, text in gap_sentences(a))
 
 
 def _hist_html(history: dict) -> str:
@@ -317,10 +360,14 @@ def _zone_row(z: dict, aggs: dict) -> str:
         ups.append(f'<a href="#{a["code"]}" class="go">{escape(nice_name(a["name"]))}</a> '
                    f'<span class="sub">{fmt(a["pe"])} h-e · {METHOD[u["method"]]}, a {fmt(u["km"], 1)} km{bad}</span>')
     upstream = "".join(f"<div>{u}</div>" for u in ups) or '<span class="sub">Ningún pueblo o ciudad de más de 2.000 h-e</span>'
+    profile = (f'<span class="sub"><a href="{escape(z["profile"])}">Perfil oficial (PDF)</a></span>'
+               if z.get("profile") else "")
     where = " · ".join(x for x in (escape(z["municipality"] or ""), ZONE_TYPE.get(z["type"], "")) if x)
     return (f'<tr id="{z["id"]}"><td><a class="go" href="#map-bath" data-bath="{z["id"]}"><b>{escape(nice_name(z["name"]))}</b></a>'
-            f'<span class="sub">{where}</span></td>'
-            f'<td>{_hist_html(z["history"])}<span class="sub">{hist_text(z["history"])}</span></td><td>{upstream}</td></tr>')
+            f'<span class="sub">{where}</span>'
+            f'{profile}</td>'
+            f'<td>{_hist_html(z["history"])}<span class="sub">{hist_text(z["history"])}</span>'
+            f'<span class="sub">{faecal_text(z)}</span></td><td>{upstream}</td></tr>')
 
 
 def _c205(aggs: dict) -> str:
@@ -337,12 +384,12 @@ def _c205(aggs: dict) -> str:
 def _map_data(data: dict) -> str:
     rel = data["release"]
     aggs = [[a["code"], nice_name(a["name"]), a["municipality"], round(a["lon"], 5), round(a["lat"], 5), a["pe"],
-             GROUP[a["main_gap"]] if a["gaps"] else "", [PLAIN[g] for g in a["gaps"]],
+             GROUP[a["main_gap"]] if a["gaps"] else "", [text for _, text in gap_sentences(a)],
              [z["id"] for z in a["zones"]]] for a in data["aggs"] if a["lon"] is not None]
     zones = [[z["id"], nice_name(z["name"]), z["municipality"], round(z["lon"], 5), round(z["lat"], 5), z["quality"],
               ZONE_TYPE.get(z["type"], ""), hist_text(z["history"]),
               [[u["code"], METHOD[u["method"]], u["km"]] for u in z["upstream"]],
-              sum(q == "insuficiente" for q in z["history"].values())]
+              sum(q == "insuficiente" for q in z["history"].values()), faecal_text(z), z.get("profile")]
              for z in data["zones"] if z["lon"] is not None]
     blob = json.dumps({"aggs": aggs, "zones": zones, "quality": QUALITY, "season": rel["season"]},
                       ensure_ascii=False, separators=(",", ":"))
@@ -421,6 +468,9 @@ def render(data: dict) -> Path:
     {step(3, "stringent", f"Donde el agua es sensible (embalses, rías, deltas), quitar además el nitrógeno y el fósforo, que alimentan plagas de algas. Desde {fmt(c.STRINGENT_PE)} h-e.",
           f"fallan aquí: {fmt(gaps['stringent'])} no lo hacen y {fmt(gaps['stringent_performance'])} no quitan lo bastante.")}
   </div>
+  <p class="block">Dentro de las aglomeraciones del informe, {fmt(f["untreated_pe"])} h-e se vierten sin ningún
+  tratamiento y {fmt(f["individual_pe"])} h-e van a fosas sépticas u otros sistemas individuales. Fuera del recuento
+  quedan los pueblos de menos de 2.000 h-e y las casas aisladas: el informe europeo no los incluye.</p>
   <dl class="words">
     <div class="card"><dt>Pueblo o ciudad («aglomeración»)</dt><dd>Para la ley, la zona que comparte alcantarillado y
     depuradora. Puede ser un municipio, parte de uno o varios juntos. Solo se cuentan las de más de 2.000 h-e.</dd></div>
@@ -469,12 +519,17 @@ def render(data: dict) -> Path:
 
   <h2 class="block" id="zonas">Las {fmt(f["poor"])} zonas de baño que suspenden</h2>
   <div class="prose">
-    <p>Cada verano se analiza el agua de cada zona de baño en busca de bacterias fecales (<i>E. coli</i> y enterococos),
-    la huella de las aguas residuales. Con las cuatro últimas temporadas, cada zona recibe una nota según la
-    <a href="{BATHING_DIRECTIVE}">Directiva 2006/7</a>: excelente, buena, suficiente o insuficiente.
-    <b>Insuficiente</b> quiere decir que esas bacterias pasan del límite demasiadas veces: hay que avisar a los bañistas,
-    prohibir o desaconsejar el baño y buscar el origen. Si suspende cinco años seguidos, la prohibición pasa a ser
-    permanente.</p>
+    <p>Cada verano se analiza el agua de cada zona de baño en busca de dos bacterias que viven en los intestinos y
+    llegan al agua con las heces: <i>E. coli</i> y enterococos. Su presencia indica que hay materia fecal en el agua,
+    y con ella pueden llegar virus y bacterias que causan gastroenteritis, otitis o infecciones de piel. Con los
+    análisis de las cuatro últimas temporadas, cada zona recibe una nota según la
+    <a href="{BATHING_DIRECTIVE}">Directiva 2006/7/CE</a>: excelente, buena, suficiente o insuficiente.</p>
+    <p><b>Insuficiente</b> quiere decir que la contaminación fecal pasa del límite con demasiada frecuencia: en el mar y
+    en las rías, más de {fmt(POOR_LIMITS["sea"][0])} <i>E. coli</i> o {fmt(POOR_LIMITS["sea"][1])} enterococos por 100 ml
+    (unidades formadoras de colonias); en ríos y embalses, más de {fmt(POOR_LIMITS["inland"][0])} o
+    {fmt(POOR_LIMITS["inland"][1])}. Técnicamente, es el percentil 90 de los análisis. Entonces hay que avisar a los
+    bañistas, prohibir o desaconsejar el baño y buscar el origen. Si suspende cinco años seguidos, la prohibición pasa a
+    ser permanente.</p>
     <p>En {fmt(f["poor_with_upstream"])} de las {fmt(f["poor"])} vierte cerca algún pueblo o ciudad, río arriba o en la
     misma costa, y en {fmt(f["poor_with_flagged_upstream"])} ese pueblo no depura como debe. En las otras
     {fmt(f["poor"] - f["poor_with_upstream"])} no vierte cerca ninguno de más de 2.000 h-e: la causa estará en pueblos
@@ -514,7 +569,9 @@ def render(data: dict) -> Path:
       {fmt(c.SECONDARY_FRESH_PE)} h-e si vierte a ríos, lagos o estuarios, y desde {fmt(c.SECONDARY_COASTAL_PE)} h-e si
       vierte al mar. <i>Depurar más</i> (tratamiento más riguroso, que elimina nitrógeno o fósforo): obligatorio desde
       {fmt(c.STRINGENT_PE)} h-e si vierte en una zona declarada sensible. Si la depuradora tiene el tratamiento pero sus
-      análisis no cumplen, también cuenta como fallo.</li>
+      análisis no cumplen, también cuenta como fallo. Los límites del agua depurada son 25 mg/l de DBO<sub>5</sub>
+      y 125 mg/l de DQO (materia orgánica) y, en zonas sensibles, 1 a 2 mg/l de fósforo y 10 a 15 mg/l de nitrógeno
+      según el tamaño.</li>
       <li><b>Lo que viene.</b> La <a href="{RECAST_URL}">nueva directiva de 2024</a> (2024/3019) exigirá a las
       depuradoras de más de {fmt(c.RECAST_LARGE_PE)} h-e quitar nitrógeno y fósforo en 2039 y un cuarto tratamiento contra
       microcontaminantes (fármacos, cosméticos) en 2045. Hoy no es un fallo y no cuenta en las cifras, pero ya se ve quién
