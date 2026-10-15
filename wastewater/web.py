@@ -24,7 +24,8 @@ SIBLINGS = [
     ("sub-nocte", "Sub Nocte"), ("riesgo-tendidos-aves", "Riesgo de tendidos para aves"),
     ("grafo-promotores", "Grafo de promotores"), ("cartera-cotizadas", "Cartera de las cotizadas"),
     ("cuaderno-campo", "Cuaderno de campo"), ("caudal-ecologico", "Caudal ecológico"),
-    ("estado-iba", "Estado de las IBA"), (SLUG, "Depuración y baño"),
+    ("estado-iba", "Estado de las IBA"), ("acuiferos-francia", "Acuíferos de Francia"),
+    (SLUG, "Depuración y baño"),
 ]
 MONTHS = "enero febrero marzo abril mayo junio julio agosto septiembre octubre noviembre diciembre".split()
 TOP_ROWS = 25
