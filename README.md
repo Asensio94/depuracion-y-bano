@@ -4,6 +4,8 @@
 
 En 2018 el Tribunal de Justicia de la UE condenó a España a pagar multa por las depuradoras que seguía sin construir (asunto C-205/17): 12 millones de euros de una vez y 10,95 millones por cada semestre de retraso.
 
+> **Estado: mantenimiento.** Sigue funcionando y se corrigen sus fallos, pero por ahora no se le añaden funciones.
+
 ## Cómo funciona
 
 1. **Lo que España declara.** De Discodata, el servicio SQL de la AEMA, se descarga el último informe de España sobre la directiva (Waterbase UWWTD). Contiene las aglomeraciones, las depuradoras, qué parte de la carga de cada aglomeración va a cada depuradora, los puntos de vertido y el programa de obras del artículo 17. Hoy es el informe de 2022, con datos a 31 de diciembre de 2022, entregado el 30 de junio de 2024.
