@@ -1,8 +1,10 @@
 name: Revisión semanal
 
-# The sources change rarely: Spain reports to the EEA every two years and the bathing water
-# classification comes out once a year (around June). Every Monday the bot checks whether either
-# has a new release and only then fetches, links and publishes. Pages serves main:/docs.
+# The sources change rarely: Spain and France report to the EEA every two years, the bathing water
+# classification comes out once a year (around June), the French ERU portal publishes a new year of
+# verdicts once a year and the French Ministry of Health one bathing season. Every Monday the bot
+# checks whether any has a new release and only then fetches, links and publishes both pages.
+# Pages serves main:/docs.
 on:
   schedule:
     - cron: "30 6 * * 1"
@@ -23,7 +25,7 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:

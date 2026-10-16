@@ -1,17 +1,15 @@
-"""Urban Waste Water Treatment Directive: what Spain reports to the EEA (Waterbase UWWTD).
+"""Urban Waste Water Treatment Directive: what each country reports to the EEA (Waterbase UWWTD).
 
-Five tables, all keyed by the codes Spain assigns: agglomerations (aggCode), treatment plants
+Five tables, all keyed by the codes the country assigns: agglomerations (aggCode), treatment plants
 (uwwCode), the links between both, discharge points (dcpCode) and the Article 17 programme
-(works planned for the agglomerations that do not comply yet). Only Spain, only what the
-page uses; one JSON file per table, sorted by code so that a new report shows up as a clean diff.
+(works planned for the agglomerations that do not comply yet). Spain and France, only what the
+page uses; one JSON file per table and country, sorted by code so that a new report shows up as a clean diff.
 """
 from __future__ import annotations
 
-from ..config import DATA_DIR, UWWTD_DB
+from ..config import UWWTD_DB, data_dir
 from ..store import read_rows, write_rows
 from .discodata import query
-
-DIR = DATA_DIR / "uwwtd"
 
 TABLES = {
     "report": ("T_ReportPeriod", "repReportedPeriod",
@@ -34,33 +32,37 @@ TABLES = {
 }
 
 
-def fetch() -> dict[str, int]:
+def _dir(country: str):
+    return data_dir(country) / "uwwtd"
+
+
+def fetch(country: str = "ES") -> dict[str, int]:
     counts = {}
     for name, (table, order, cols) in TABLES.items():
-        rows = query(f"SELECT {cols} FROM {UWWTD_DB}.[{table}] WHERE CountryCode='ES'")
+        rows = query(f"SELECT {cols} FROM {UWWTD_DB}.[{table}] WHERE CountryCode='{country}'")
         keys = [k.strip() for k in order.split(",")]
         rows.sort(key=lambda r: tuple(str(r[k]) for k in keys))
         for r in rows:
             for k, v in r.items():
                 if isinstance(v, str):
                     r[k] = v.strip()
-        write_rows(DIR / f"{name}.json", rows)
+        write_rows(_dir(country) / f"{name}.json", rows)
         counts[name] = len(rows)
     return counts
 
 
-def load(name: str) -> list[dict]:
-    return read_rows(DIR / f"{name}.json")
+def load(name: str, country: str = "ES") -> list[dict]:
+    return read_rows(_dir(country) / f"{name}.json")
 
 
-def report() -> dict:
-    """Which report is in use: the reported year, the situation date and when Spain sent it."""
-    r = load("report")[0]
+def report(country: str = "ES") -> dict:
+    """Which report is in use: the reported year, the situation date and when the country sent it."""
+    r = max(load("report", country), key=lambda r: str(r["repReportedPeriod"]))
     return {"year": r["repReportedPeriod"], "situation": r["repSituationAt"][:10], "version": r["repVersion"][:10]}
 
 
-def query_report() -> dict:
+def query_report(country: str = "ES") -> dict:
     """The report currently published, straight from Discodata (to decide whether to fetch again)."""
-    r = max(query(f"SELECT {TABLES['report'][2]} FROM {UWWTD_DB}.[T_ReportPeriod] WHERE CountryCode='ES'"),
+    r = max(query(f"SELECT {TABLES['report'][2]} FROM {UWWTD_DB}.[T_ReportPeriod] WHERE CountryCode='{country}'"),
             key=lambda r: str(r["repReportedPeriod"]))
     return {"year": r["repReportedPeriod"], "version": r["repVersion"][:10]}
