@@ -7,7 +7,15 @@ DOCS_DIR = ROOT / "docs"
 CACHE_DIR = ROOT / ".cache"            # large inputs re-downloaded on demand, never committed
 
 PAGES = "https://asensio94.github.io/depuracion-y-bano/"
+PAGES_FR = PAGES + "fr/"               # the French page, in French
 REPO = "https://github.com/Asensio94/depuracion-y-bano"
+
+# Spain keeps the layout it always had (data/, docs/); France lives one level down (data/fr/, docs/fr/).
+COUNTRIES = ("ES", "FR")
+
+
+def data_dir(country: str = "ES") -> Path:
+    return DATA_DIR if country == "ES" else DATA_DIR / country.lower()
 
 # EEA Discodata: read-only SQL over the reported datasets.
 DISCODATA = "https://discodata.eea.europa.eu/sql"
@@ -22,10 +30,22 @@ BATHING_SEASONS_KEPT = 4               # the classification itself already looks
 # HydroRIVERS v1.0, Europe: river reaches with their downstream neighbour.
 HYDRORIVERS_URL = "https://data.hydrosheds.org/file/HydroRIVERS/HydroRIVERS_v10_eu_shp.zip"
 SPAIN_BBOX = (-10.0, 35.0, 4.6, 44.0)  # mainland and Balearics; the Canaries have no river bathing waters
+FRANCE_BBOX = (-5.3, 41.3, 9.7, 51.2)  # metropolitan France and Corsica; HydroRIVERS Europe has no overseas departments
+RIVER_BBOX = {"ES": SPAIN_BBOX, "FR": FRANCE_BBOX}
+KM_LATITUDE = {"ES": 40.0, "FR": 46.5}  # latitude of the flat km plane each country is projected on
 
 # IGN municipalities with INE codes, packaged as TopoJSON by es-atlas (~200 m), as in estado-iba.
 MUNICIPALITIES_URL = "https://cdn.jsdelivr.net/npm/es-atlas@0.6.0/es/municipalities.json"
 MUNICIPALITY_SNAP_DEG = 0.05           # beaches lie on the coastline the simplified polygons cut off
+
+# --- France ---
+# Ministry of Ecology, collective sanitation portal (base ERU): its own compliance verdict per agglomeration.
+ERU_PORTAL = "https://assainissement.developpement-durable.gouv.fr"
+ERU_EXPORT = ERU_PORTAL + "/controllers/GetDataExportSteuHandler.php"
+ERU_DOWNLOAD_PAGE = ERU_PORTAL + "/pages/data/basededonneesteu.php"
+# Ministry of Health, bathing season reporting on data.gouv.fr (sites, classification, closures).
+BAIGNADE_DATASET = "https://www.data.gouv.fr/api/1/datasets/57fce28ac751df0e4079df72/"
+BAIGNADE_PAGE = "https://www.data.gouv.fr/fr/datasets/donnees-de-rapportage-de-la-saison-balneaire-1/"
 
 # --- Directive 91/271/EEC thresholds (population equivalent, p.e.) ---
 MIN_COLLECTED_PCT = 98.0               # collected + individual systems (IAS) below this: collecting gap

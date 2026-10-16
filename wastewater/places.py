@@ -81,6 +81,7 @@ class Locator:
 
 
 SMALL = {"de", "del", "la", "las", "los", "el", "y", "e", "o", "en", "a"}
+SMALL_FR = {"de", "du", "des", "la", "le", "les", "sur", "sous", "en", "et", "aux", "au", "lès", "lez"}
 
 
 def _cap(w: str, first: bool) -> str:
@@ -91,8 +92,14 @@ def _cap(w: str, first: bool) -> str:
     return w[:1].upper() + w[1:]
 
 
-def nice_name(s: str) -> str:
-    """Names come in capitals: "SANTIAGO DE COMPOSTELA" -> "Santiago de Compostela"; codes such as "PM1" stay."""
+def nice_name(s: str, lang: str = "es") -> str:
+    """Names come in capitals: "SANTIAGO DE COMPOSTELA" -> "Santiago de Compostela"; codes such as "PM1" stay.
+
+    In French the small words also go in lower case inside hyphenated names: "SAINT-MARTIN-DE-RE" ->
+    "Saint-Martin-de-Re", "PONT-L'ABBE" -> "Pont-l'Abbe" (the capitals carry no accents to restore).
+    """
+    if lang == "fr":
+        return _nice_fr(s)
     s = " ".join((s or "").split())
     if s != s.upper():
         return s                                   # already written in mixed case (IGN, some islands)
@@ -105,4 +112,27 @@ def nice_name(s: str) -> str:
             words.append(low)
         else:
             words.append("-".join(_cap(p, i == 0) for p in low.split("-")))
+    return " ".join(words)
+
+
+def _nice_fr(s: str) -> str:
+    s = " ".join((s or "").split())
+    if s != s.upper():
+        return s
+    words = []
+    for i, w in enumerate(s.split()):
+        if any(ch.isdigit() for ch in w) or (i and re.fullmatch(r"[IVX]{2,4}", w)):
+            words.append(w)
+            continue
+        parts = []
+        for j, part in enumerate(w.lower().split("-")):
+            first = i == 0 and j == 0
+            if not first and part in SMALL_FR:
+                parts.append(part)
+            elif "'" in part[:3]:
+                pre, rest = part.split("'", 1)
+                parts.append((pre.capitalize() if first else pre) + "'" + rest[:1].upper() + rest[1:])
+            else:
+                parts.append(part[:1].upper() + part[1:])
+        words.append("-".join(parts))
     return " ".join(words)
