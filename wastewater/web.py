@@ -460,6 +460,11 @@ def render(data: dict) -> Path:
     {long_date(rep["situation"])}, y comprueba regla a regla quién no cumple. Después sigue el agua de cada depuradora
     hasta las zonas de baño que hay río abajo. Es un <b>indicio, no un veredicto</b>: la Comisión Europea tiene en
     cuenta plazos, excepciones y datos que el informe no trae.</p>
+    <p><b>España y Francia no se comparan una a una.</b> Las señales de España salen de las reglas propias de este
+    proyecto aplicadas al informe a la AEMA; la <a href="fr/" hreflang="fr">página de Francia</a> muestra el veredicto
+    oficial del Estado francés, que mira otro año y cuenta más criterios (autocontrol de las depuradoras, vertidos
+    cuando llueve). Las cifras de las dos páginas no miden lo mismo. Para comparar los dos países sirve la «segunda
+    lectura» de la página francesa, que aplica estas mismas reglas al informe de Francia a la AEMA.</p>
   </div>
 
   <h2 class="block">Lo que pide la ley, en tres pasos</h2>

@@ -102,3 +102,11 @@ def test_french_signals():
     assert w["url"].endswith("/fr/#060000169123") and w["municipalities"] == ["69123"]
     assert b["municipalities"] == ["2A004"] and b["title"] == "Baignade Plage du Centre : insuffisante en 2025"
     assert b["details"]["interdictions_sanitaires"] == 3
+
+
+def test_official_causes_said_in_plain_french():
+    from wastewater.web_fr import CAUSE, cause_text
+    for official, plain in CAUSE.items():
+        assert cause_text(official) == plain
+        assert not any(code in plain for code in ("STEU", "AE /ODE", "A2", "A5", "PC95", "NGL", "AS "))
+    assert cause_text("Cause inconnue") == "cause inconnue"          # an unknown one is shown as published
