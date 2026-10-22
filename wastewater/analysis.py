@@ -27,16 +27,16 @@ def display_name(name: str, municipality: str) -> str:
     return municipality if municipality and _plain(municipality) == _plain(name) else name
 
 
-def latest_zones() -> tuple[dict, list[dict]]:
+def latest_zones(country: str = "ES") -> tuple[dict, list[dict]]:
     """The bathing waters classified in the latest season, with their register data and history."""
-    rel = bathing.release()
+    rel = bathing.release(country)
     history = defaultdict(dict)
     rows = {}
-    for r in bathing.status():
+    for r in bathing.status(country):
         history[r["id"]][r["season"]] = r["quality"]
         if r["season"] == rel["season"]:
             rows[r["id"]] = r
-    register = {z["id"]: z for z in bathing.zones()}
+    register = {z["id"]: z for z in bathing.zones(country)}
     out = []
     for i, r in sorted(rows.items()):
         z = register.get(i, {})
@@ -107,7 +107,7 @@ def build() -> dict:
         z["ine"] = locate(z["lon"], z["lat"])
         z["municipality"] = names.get(z["ine"], "")
         z["upstream"] = [{"code": a, "method": m, "km": km}
-                         for a, (_, m, km) in sorted(upstream[z["id"]].items(), key=lambda kv: kv[1][0])]
+                         for a, (_, m, km) in sorted(upstream[z["id"]].items(), key=lambda kv: (kv[1][0], kv[0]))]
 
     flagged = [a for a in agg_rows if a["gaps"]]
     by_code = {a["code"]: a for a in agg_rows}

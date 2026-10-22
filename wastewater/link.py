@@ -24,14 +24,21 @@ from shapely.geometry import Point
 
 from . import config as c
 
-KM_X = 111.32 * math.cos(math.radians(40))   # km per degree of longitude around 40° N
 KM_Y = 110.57                                 # km per degree of latitude
+
+
+def km_x(lat: float) -> float:
+    """km per degree of longitude around a latitude."""
+    return 111.32 * math.cos(math.radians(lat))
+
+
+KM_X = km_x(c.KM_LATITUDE["ES"])              # around 40° N, the middle of Spain
 RIVER_TYPES = {"riverBathingWater", "lakeBathingWater"}
 SEA_TYPES = {"coastalBathingWater", "transitionalBathingWater"}
 
 
 def to_km(lon: float, lat: float) -> tuple[float, float]:
-    """A flat plane in km. Across Spain it is off by under 10 %, which only moves the thresholds a little."""
+    """A flat plane in km around 40° N. Across Spain it is off by under 10 %, which only moves the thresholds a little."""
     return lon * KM_X, lat * KM_Y
 
 
@@ -51,15 +58,19 @@ class Link:
 class Network:
     """HydroRIVERS reaches: geometry in km, downstream neighbour and length."""
 
-    def __init__(self, ids, next_down, length_km, lines):
+    def __init__(self, ids, next_down, length_km, lines, kx: float = KM_X):
+        self.kx = kx
         self.next = {int(i): int(n) for i, n in zip(ids, next_down)}
         self.length = {int(i): float(v) for i, v in zip(ids, length_km)}
         self.ids = [int(i) for i in ids]
         self.lines = lines
         self.tree = STRtree(lines)
 
+    def to_km(self, lon: float, lat: float) -> tuple[float, float]:
+        return lon * self.kx, lat * KM_Y
+
     @classmethod
-    def load(cls) -> "Network":
+    def load(cls, country: str = "ES") -> "Network":
         path = c.CACHE_DIR / "hydrorivers_eu.zip"
         if not path.exists():
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -70,13 +81,14 @@ class Network:
                         f.write(chunk)
         src = f"/vsizip/{path.as_posix()}/HydroRIVERS_v10_eu_shp/HydroRIVERS_v10_eu.shp"
         _, _, wkb, (ids, nxt, length) = pyogrio.raw.read(
-            src, bbox=c.SPAIN_BBOX, columns=["HYRIV_ID", "NEXT_DOWN", "LENGTH_KM"])
-        lines = shapely.transform(shapely.from_wkb(wkb), lambda xy: xy * np.array([KM_X, KM_Y]))
-        return cls(ids, nxt, length, list(lines))
+            src, bbox=c.RIVER_BBOX[country], columns=["HYRIV_ID", "NEXT_DOWN", "LENGTH_KM"])
+        kx = km_x(c.KM_LATITUDE[country])
+        lines = shapely.transform(shapely.from_wkb(wkb), lambda xy: xy * np.array([kx, KM_Y]))
+        return cls(ids, nxt, length, list(lines), kx)
 
     def snap(self, lon: float, lat: float) -> tuple[int, float] | None:
         """(reach id, km from the start of the reach) of the closest reach, if close enough."""
-        p = Point(*to_km(lon, lat))
+        p = Point(*self.to_km(lon, lat))
         hit = self.tree.query_nearest(p, max_distance=c.RIVER_SNAP_KM)
         if not len(hit):
             return None
@@ -130,7 +142,7 @@ def build(discharges: list[dict], zones: list[dict], net: Network) -> list[Link]
             if s:
                 on_reach.setdefault(s[0], []).append((z, s[1]))
     sea = [z for z in zones if z["type"] in SEA_TYPES and z["lon"] is not None]
-    sea_xy = STRtree([Point(*to_km(z["lon"], z["lat"])) for z in sea]) if sea else None
+    sea_xy = STRtree([Point(*net.to_km(z["lon"], z["lat"])) for z in sea]) if sea else None
     by_body: dict[str, list[dict]] = {}
     for z in zones:
         b = norm_body(z.get("water_body"))
@@ -156,11 +168,11 @@ def build(discharges: list[dict], zones: list[dict], net: Network) -> list[Link]
                             keep(Link(d["dcpCode"], sea[int(i)]["id"], "mouth", round(km, 1)))
         b = norm_body(d["dcpWaterbodyID"])
         if b:
-            here = Point(*to_km(lon, lat))
+            here = Point(*net.to_km(lon, lat))
             for z in by_body.get(b, []):
                 if z["type"] == "riverBathingWater":
                     continue                                   # direction matters on a river
-                dist = here.distance(Point(*to_km(z["lon"], z["lat"])))
+                dist = here.distance(Point(*net.to_km(z["lon"], z["lat"])))
                 if dist <= c.SAME_BODY_KM:
                     keep(Link(d["dcpCode"], z["id"], "water_body", round(dist, 1)))
     return sorted(links.values(), key=lambda l: (l.discharge, l.zone))

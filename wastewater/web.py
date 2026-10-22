@@ -101,7 +101,8 @@ NOMENCLATOR_URL = "https://www.ine.es/nomen2/index.do"
 # INE Nomenclátor 2025: people in scattered housing (units ending in 99) and in population nuclei under 2,000.
 NOMENCLATOR = {"year": 2025, "scattered": 1_700_591, "small": 6_359_824}
 
-CSS = f""":root{{--accent:{ACCENT};--accent-dark:{ACCENT_DARK};
+CSS = f""".lang{{margin:6px 0 0;font-size:.9rem}}.lang a{{color:inherit}}
+:root{{--accent:{ACCENT};--accent-dark:{ACCENT_DARK};
   --g-collection:#b42318;--g-secondary:#d9600f;--g-stringent:#b8860b;--g-ok:#9a948d;
   --q-insuficiente:#b42318;--q-suficiente:#d99a00;--q-buena:#5b9bd5;--q-excelente:#2b59a6;--q-sin_clasificar:#9a948d}}
 main{{max-width:1100px;margin:0 auto;padding:0 16px}}
@@ -440,6 +441,7 @@ def render(data: dict) -> Path:
   <h1>{LOGO_SVG}Depuración <span>y baño</span></h1>
   <p class="lede">¿A dónde va lo que tiras por el váter? Qué pueblos y ciudades no depuran sus aguas residuales
   como exige la ley europea, y qué zonas de baño quedan río abajo.</p>
+  <p class="lang" lang="fr"><a href="fr/">Version française : France</a></p>
   <div class="figures">
     <div><b>{fmt(f["flagged"])}</b><span>pueblos y ciudades no depuran como exige la ley, de {fmt(f["assessed"])}</span></div>
     <div><b>1 de cada {one_in}</b><span>partes de las aguas residuales de España salen de ellos</span></div>

@@ -13,11 +13,13 @@ import zipfile
 import openpyxl
 import requests
 
-from ..config import BATHING_SEASONS_KEPT, BATHING_TITLE, BWD_DB, DATA_DIR, EEA_CATALOGUE, EEA_DATA
+from ..config import BATHING_SEASONS_KEPT, BATHING_TITLE, BWD_DB, COUNTRIES, EEA_CATALOGUE, EEA_DATA, data_dir
 from ..store import read_json, read_rows, write_json, write_rows
 from .discodata import query
 
-DIR = DATA_DIR / "bathing"
+
+def _dir(country: str):
+    return data_dir(country) / "bathing"
 
 # EEA class -> the Spanish name the Ministry of Health uses for it.
 QUALITY = {"1": "excelente", "2": "buena", "3": "suficiente", "4": "insuficiente", "0": "sin_clasificar"}
@@ -56,33 +58,35 @@ def _download(uuid: str) -> bytes:
     return r.content
 
 
-def fetch_status(release: dict) -> int:
-    """Spanish rows of the last seasons, from the Excel inside the release zip."""
+def fetch_status(release: dict, countries=COUNTRIES) -> dict[str, int]:
+    """Rows of the last seasons for each country, from the Excel inside the release zip (downloaded once)."""
     z = zipfile.ZipFile(io.BytesIO(_download(release["uuid"])))
     name = next(n for n in z.namelist() if n.endswith(".xlsx"))
     ws = openpyxl.load_workbook(io.BytesIO(z.read(name)), read_only=True).worksheets[0]
     rows = ws.iter_rows(values_only=True)
     head = {h: i for i, h in enumerate(next(rows))}
     first = release["season"] - BATHING_SEASONS_KEPT + 1
-    out = []
+    out = {cc: [] for cc in countries}
     for r in rows:
-        if r[head["countryCode"]] != "ES" or not r[head["season"]] or r[head["season"]] < first:
+        cc = r[head["countryCode"]]
+        if cc not in out or not r[head["season"]] or r[head["season"]] < first:
             continue
-        out.append({"id": r[head["bathingWaterIdentifier"]], "season": int(r[head["season"]]),
+        out[cc].append({"id": r[head["bathingWaterIdentifier"]], "season": int(r[head["season"]]),
                     "quality": QUALITY.get(str(r[head["quality"]] or "0")[0], "sin_clasificar"),
                     "name": (r[head["bathingWaterName"]] or "").strip(), "type": r[head["bathingWaterType"]],
                     "lon": r[head["lon"]], "lat": r[head["lat"]], "profile": r[head["bwProfile"]] or None})
-    out.sort(key=lambda x: (x["id"], x["season"]))
-    write_rows(DIR / "status.json", out)
-    write_json(DIR / "release.json", release)
-    return len(out)
+    for cc, rows_cc in out.items():
+        rows_cc.sort(key=lambda x: (x["id"], x["season"]))
+        write_rows(_dir(cc) / "status.json", rows_cc)
+        write_json(_dir(cc) / "release.json", release)
+    return {cc: len(v) for cc, v in out.items()}
 
 
-def fetch_zones() -> int:
+def fetch_zones(country: str = "ES") -> int:
     """Each bathing water with its water body: the latest record of the register for every identifier."""
     rows = query(f"SELECT thematicIdIdentifier, nameText, specialisedZoneType, relatedZoneIdentifier, "
                  f"relatedZoneIdentifierScheme, lon, lat, cYear FROM {BWD_DB}.[spatial_ProtectedArea] "
-                 f"WHERE countryCode='ES'")
+                 f"WHERE countryCode='{country}'")
     rows.sort(key=lambda r: (r["thematicIdIdentifier"], r["cYear"] or 0))
     latest: dict[str, dict] = {}
     for r in rows:                                  # ordered by year: the last one wins
@@ -92,17 +96,17 @@ def fetch_zones() -> int:
             "lon": float(r["lon"]) if r["lon"] is not None else None,
             "lat": float(r["lat"]) if r["lat"] is not None else None, "year": r["cYear"]}
            for k, r in sorted(latest.items())]
-    write_rows(DIR / "zones.json", out)
+    write_rows(_dir(country) / "zones.json", out)
     return len(out)
 
 
-def release() -> dict | None:
-    return read_json(DIR / "release.json")
+def release(country: str = "ES") -> dict | None:
+    return read_json(_dir(country) / "release.json")
 
 
-def status() -> list[dict]:
-    return read_rows(DIR / "status.json")
+def status(country: str = "ES") -> list[dict]:
+    return read_rows(_dir(country) / "status.json")
 
 
-def zones() -> list[dict]:
-    return read_rows(DIR / "zones.json")
+def zones(country: str = "ES") -> list[dict]:
+    return read_rows(_dir(country) / "zones.json")
