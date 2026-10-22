@@ -16,10 +16,11 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from . import config as c
+from .footer import footer_nav
 from .i18n import NNBSP, d, n, t
 from .logo import LOGO_SVG, favicon_link
 from .places import nice_name
-from .web import ACCENT, ACCENT_DARK, COMMON_CSS, CSS, POOR_LIMITS, SIBLINGS, SLUG
+from .web import ACCENT, ACCENT_DARK, COMMON_CSS, CSS, POOR_LIMITS
 
 NBSP = " "
 MONTHS = "janvier février mars avril mai juin juillet août septembre octobre novembre décembre".split()
@@ -376,10 +377,6 @@ def render(data: dict) -> Path:
     diff = ("" if not f["class_differ"] else
             f" (les {nf(len(f['class_differ']))} écarts {'ne touchent aucune' if not poor_differ else 'touchent ' + nf(poor_differ)} "
             f"baignade{'s' if poor_differ > 1 else ''} insuffisante{'s' if poor_differ > 1 else ''} ; la page suit l'AEE)")
-    siblings = "\n".join(
-        f'    <li{" aria-current=\"page\"" if slug == SLUG else ""}>'
-        f'<a href="https://asensio94.github.io/{slug}/{"fr/" if slug == SLUG else ""}">{name}</a></li>'
-        for slug, name in SIBLINGS)
 
     def step(k: int, g: str, text: str, detail: str) -> str:
         return (f'<div class="card" style="--c:var(--g-{g})"><h3><small>{k}</small>{STEP[g]}</h3><p>{text}</p>'
@@ -636,9 +633,7 @@ def render(data: dict) -> Path:
   Réseau de rivières : <a href="{HYDROSHEDS}">HydroRIVERS</a> (Lehner et Grill, 2013, <i>Hydrological Processes</i>
   27(15) : 2171–2186). Carte : © contributeurs d'OpenStreetMap. Code sur <a href="{c.REPO}">GitHub</a> (MIT) ;
   données dérivées CC BY 4.0. Page générée le {now:%d/%m/%Y à %H:%M} (heure de Paris).</p>
-  <nav aria-label="Projets frères" lang="es"><ul class="siblings">
-{siblings}
-  </ul></nav>
+  {footer_nav("fr")}
 </footer>"""
 
     html = f"""<!doctype html>

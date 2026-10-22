@@ -12,20 +12,12 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from . import config as c
+from .footer import footer_nav
 from .logo import LOGO_SVG, favicon_link
 from .places import nice_name
 
 ACCENT, ACCENT_DARK = "#2b59a6", "#8eb1f0"
 COMMON_CSS = (Path(__file__).parent / "common.css").read_text(encoding="utf-8")
-SLUG = "depuracion-y-bano"
-SIBLINGS = [
-    ("observatorio-alegaciones", "Observatorio de alegaciones"), ("vigia-incendios", "Vigía de incendios"),
-    ("centinela-natura", "Centinela Natura"), ("vigilancia-humedales", "Vigilancia de humedales"),
-    ("sub-nocte", "Sub Nocte"), ("riesgo-tendidos-aves", "Riesgo de tendidos para aves"),
-    ("grafo-promotores", "Grafo de promotores"), ("cartera-cotizadas", "Cartera de las cotizadas"),
-    ("cuaderno-campo", "Cuaderno de campo"), ("caudal-ecologico", "Caudal ecológico"),
-    ("estado-iba", "Estado de las IBA"), (SLUG, "Depuración y baño"),
-]
 MONTHS = "enero febrero marzo abril mayo junio julio agosto septiembre octubre noviembre diciembre".split()
 TOP_ROWS = 25
 
@@ -413,9 +405,6 @@ def render(data: dict) -> Path:
     ok_pct = 100 * (f["zones"] - f["poor"] - f["quality"]["sin_clasificar"]) / f["zones"]
     one_in = round(f["total_pe"] / f["flagged_pe"])
     seasons = len(poor[0]["history"]) if poor else 4
-    siblings = "\n".join(
-        f'    <li{" aria-current=\"page\"" if slug == SLUG else ""}>'
-        f'<a href="https://asensio94.github.io/{slug}/">{name}</a></li>' for slug, name in SIBLINGS)
 
     def step(n: int, g: str, text: str, detail: str) -> str:
         return (f'<div class="card" style="--c:var(--g-{g})"><h3><small>{n}</small>{STEP[g]}</h3><p>{text}</p>'
@@ -636,9 +625,7 @@ def render(data: dict) -> Path:
   <a href="{HYDROSHEDS}">HydroRIVERS</a> (Lehner y Grill, 2013, <i>Hydrological Processes</i> 27(15): 2171–2186).
   Municipios: IGN, vía es-atlas. Mapa: © colaboradores de OpenStreetMap. Código en <a href="{c.REPO}">GitHub</a> (MIT);
   datos propios CC BY 4.0. Página generada el {now:%d/%m/%Y a las %H:%M} (hora peninsular).</p>
-  <nav aria-label="Proyectos hermanos"><ul class="siblings">
-{siblings}
-  </ul></nav>
+  {footer_nav("es")}
 </footer>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>{SCRIPT.replace("__DATA__", _map_data(data))}</script>
