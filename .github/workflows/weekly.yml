@@ -14,6 +14,10 @@ on:
         description: "Rebuild even if no source changed"
         type: boolean
         default: false
+      web_only:
+        description: "Only re-render the pages from the stored data (no download)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -39,6 +43,7 @@ jobs:
 
       - name: New release?
         id: check
+        if: github.event.inputs.web_only != 'true'
         run: |
           if [ "${{ github.event.inputs.force }}" = "true" ] || python -m wastewater.cli check; then
             echo "build=true" >> "$GITHUB_OUTPUT"
@@ -46,9 +51,17 @@ jobs:
             echo "Nothing new."
           fi
 
-      # HydroRIVERS (68 MB) and the municipalities layer do not change between runs.
+      # The pages read only data/ (links included), so a text change can be published without
+      # downloading anything. HydroRIVERS refuses GitHub's runners (403 from Cloudflare), which makes
+      # this the way to republish while the cache below is empty.
+      - name: Render only
+        if: github.event.inputs.web_only == 'true'
+        run: python -m wastewater.cli page
+
+      # HydroRIVERS (68 MB) and the municipalities layer do not change between runs. GitHub drops a
+      # cache unused for 7 days and the download is refused from the runners, so it is restored every
+      # week, build or not, to keep it alive.
       - uses: actions/cache@v4
-        if: steps.check.outputs.build == 'true'
         with:
           path: .cache
           key: inputs-hydrorivers-v10-es-atlas-0.6.0
@@ -58,7 +71,7 @@ jobs:
         run: python -m wastewater.cli all
 
       - name: Commit
-        if: steps.check.outputs.build == 'true'
+        if: steps.check.outputs.build == 'true' || github.event.inputs.web_only == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
