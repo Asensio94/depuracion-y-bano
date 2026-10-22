@@ -29,6 +29,38 @@ TOP_ROWS = 25
 # What fails in the official verdict, from the most basic; each agglomeration counts once, by the first.
 STEP = {"collection": "Collecter", "equipment": "Équiper", "performance": "Bien épurer"}
 CHECK = {"bod": "DBO₅", "cod": "DCO", "n": "azote", "p": "phosphore"}
+# The portal's causes of non-compliance carry its own codes (STEU = the plant, AE/ODE = water agency or
+# office, A2/A5 = measuring points, PC95 = reference flow); said in plain French, the official wording
+# kept as a tooltip. An unknown cause is shown as published.
+CAUSE = {
+    "Mauvaises performances": "rejets au-dessus des limites",
+    "Autosurveillance jugée incorrecte par AE /ODE (STEU)":
+        "autosurveillance de la station jugée incorrecte par l'Agence ou l'Office de l'eau",
+    "Autre insuffisance sur le dispositif d'autosurveillance (STEU)":
+        "autre défaut du dispositif d'autosurveillance de la station",
+    "Nombreux déversements en tête de station (A2) en dessous du débit de référence (à minima le PC95)":
+        "eaux usées souvent déversées à l'entrée de la station sans être traitées, même quand le débit "
+        "restait sous le débit de référence",
+    "Nombreux déversements en cours de traitement (A5) en dessous du débit de référence (à minima PC95)":
+        "eaux usées souvent déversées en cours de traitement, même quand le débit restait sous le débit de référence",
+    "Point de mesure A2 absent": "pas de mesure des déversements à l'entrée de la station",
+    "Point de mesure A5 absent": "pas de mesure des déversements en cours de traitement",
+    "Non transmission complète ou incomplète de l'autosurveillance (STEU)":
+        "résultats d'autosurveillance de la station non transmis ou incomplets",
+    "Non transmission de l'autosurveillance (STEU)": "résultats d'autosurveillance de la station non transmis",
+    "Production de boue insuffisante et absence de justification":
+        "trop peu de boues produites pour l'eau reçue, sans explication",
+    "Absence de bilan annuel de fonctionnement": "pas de bilan annuel de fonctionnement",
+    "Nombre de bilans d'autosurveillance insuffisant sur le paramètre DBO5": "trop peu d'analyses de la DBO₅",
+    "Nombre de bilans d'autosurveillance insuffisant sur au moins un des paramètres DBO5-DCO-NGL-Pt":
+        "trop peu d'analyses de la DBO₅, de la DCO, de l'azote ou du phosphore",
+    "Nombre de bilans AS insuffisant sur autres que DBO5-DCO-NGL-Pt (ex pH, T°c, bactériologie,...)":
+        "trop peu d'analyses des autres paramètres (pH, température, bactériologie…)",
+}
+
+
+def cause_text(cause: str) -> str:
+    return CAUSE.get(cause, cause[:1].lower() + cause[1:])
 QUALITY = {"excelente": "Excellente", "buena": "Bonne", "suficiente": "Suffisante",
            "insuficiente": "Insuffisante", "sin_clasificar": "Non classée"}
 ZONE_TYPE = {"coastalBathingWater": "mer", "transitionalBathingWater": "estuaire ou lagune",
@@ -252,7 +284,7 @@ def why(a: dict) -> list[str]:
                 if checks:
                     s += f" (rejets au-dessus des limites en {', '.join(checks)})"
                 if p["cause"]:
-                    s += f" ; motif retenu : {p['cause'][0].lower() + p['cause'][1:]}"
+                    s += f" ; motif retenu : {cause_text(p['cause'])}"
                 out.append(s)
     if a["verdict"] == "no" and not out:
         out.append("Non conforme selon les services de l'État, sans détail par critère")
@@ -409,6 +441,12 @@ def render(data: dict) -> Path:
     plus récent, et suit l'eau de chaque station jusqu'aux baignades situées en aval. En complément, elle applique aux
     données que la France a envoyées à l'Agence européenne pour l'environnement (AEE) les mêmes règles que la page
     espagnole : une deuxième lecture, indépendante.</p>
+    <p><b>La France et l'Espagne ne se comparent pas une à une.</b> Pour l'Espagne, la
+    <a href="../" hreflang="es">page espagnole</a> tire ses signaux des règles propres à ce projet, appliquées au
+    rapport de l'Espagne à l'AEE ; pour la France, cette page montre le verdict officiel de l'État, qui porte sur une
+    autre année et compte plus de critères (autosurveillance, déversements par temps de pluie). Les chiffres des deux
+    pages ne mesurent donc pas la même chose. Pour comparer les deux pays, il faut prendre la deuxième lecture
+    (plus bas, « Deux lectures »), qui applique les mêmes règles au rapport de {rep["year"]} à l'AEE.</p>
   </div>
 
   <h2 class="block">Ce que demande la loi, en trois étapes</h2>
@@ -423,9 +461,9 @@ def render(data: dict) -> Path:
           f"échouent ici en premier ; {nf(f['fails']['performance'])} au total n'ont pas des performances conformes.")}
   </div>
   <p class="block">Quand une station échoue, les services de l'État en donnent le motif. Les plus fréquents parmi les
-  agglomérations non conformes :</p>
+  agglomérations non conformes (dits en clair ; l'intitulé officiel du portail s'affiche au survol) :</p>
   <ul class="prose">
-{chr(10).join(f"    <li>{escape(cause)} : {nf(k)}</li>" for cause, k in causes)}
+{chr(10).join(f'    <li title="{escape(cause)}">{escape(cause_text(cause)[:1].upper() + cause_text(cause)[1:])} : {nf(k)}</li>' for cause, k in causes)}
   </ul>
   <dl class="words">
     <div class="card"><dt>Agglomération d'assainissement</dt><dd>La zone dont les eaux usées vont au même système de
